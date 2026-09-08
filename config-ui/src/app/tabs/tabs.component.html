@@ -1,0 +1,13 @@
+<div class="tabs" role="tablist" aria-label="Configuration sections">
+  @for (tab of tabs(); track tab.id) {
+    <button
+      type="button"
+      role="tab"
+      [attr.aria-selected]="isActive(tab.id)"
+      [class.active]="isActive(tab.id)"
+      (click)="selectTab(tab.id)"
+    >
+      {{ tab.label }}
+    </button>
+  }
+</div>

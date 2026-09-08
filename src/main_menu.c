@@ -4,7 +4,9 @@
 #include "lvgl.h"
 #include "assets/chart_icon.h"
 #include "assets/abstract_timekeeper.h"
+#include "assets/ftp_icon.h"
 #include "assets/settings_icon.h"
+#include "ftp_server.h"
 #include "motion_detection.h"
 #include "power_button.h"
 #include "settings_ui.h"
@@ -31,7 +33,7 @@ static const lv_coord_t menu_rows[] = {
 };
 
 static const char *const menu_icons[] = {
-    LV_SYMBOL_WIFI,
+    NULL,
     NULL,
     NULL,
     LV_SYMBOL_PLAY,
@@ -61,6 +63,14 @@ static void open_settings_ui(lv_event_t *event)
     settings_ui_create();
 }
 
+static void open_ftp_server(lv_event_t *event)
+{
+    (void)event;
+
+    lv_obj_clean(lv_screen_active());
+    ftp_server_create();
+}
+
 static const char *battery_icon(uint8_t percent)
 {
     if (percent <= 10) {
@@ -85,9 +95,11 @@ static void create_toolbar(lv_obj_t *parent)
     lv_obj_add_flag(toolbar, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_set_size(toolbar, LV_PCT(100), MENU_TOOLBAR_HEIGHT);
     lv_obj_align(toolbar, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_border_width(toolbar, 0, 0);
+    lv_obj_set_style_border_side(toolbar, LV_BORDER_SIDE_BOTTOM, 0);
+    lv_obj_set_style_border_width(toolbar, 2, 0);
+    lv_obj_set_style_border_color(toolbar, lv_color_hex(0xFF7A00), 0);
     lv_obj_set_style_radius(toolbar, 0, 0);
-    lv_obj_set_style_bg_color(toolbar, lv_color_hex(0x102C42), 0);
+    lv_obj_set_style_bg_color(toolbar, lv_color_hex(0x0E0E0E), 0);
     lv_obj_set_style_pad_left(toolbar, MENU_PADDING, 0);
 
     lv_obj_t *battery_label = lv_label_create(toolbar);
@@ -111,17 +123,28 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
     lv_obj_set_grid_cell(button, LV_GRID_ALIGN_CENTER, index % MENU_COLUMN_COUNT, 1,
                          LV_GRID_ALIGN_CENTER, index / MENU_COLUMN_COUNT, 1);
     lv_obj_set_style_radius(button, 16, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x202020), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x404040), LV_STATE_PRESSED);
-    /* Tiles 1 and 2 use generated RGB565 image descriptors, not font glyphs. */
-    if (index == 1) {
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x1C1C1C), 0);
+    lv_obj_set_style_bg_color(button, lv_color_hex(0x303030), LV_STATE_PRESSED);
+    lv_obj_set_style_border_width(button, 2, 0);
+    lv_obj_set_style_border_color(button, lv_color_hex(0xFF7A00), 0);
+    lv_obj_set_style_shadow_color(button, lv_color_black(), 0);
+    lv_obj_set_style_shadow_width(button, 8, 0);
+    lv_obj_set_style_shadow_opa(button, LV_OPA_60, 0);
+    lv_obj_set_style_shadow_offset_y(button, 4, 0);
+    if (index == 0) {
+        lv_obj_add_event_cb(button, open_ftp_server, LV_EVENT_CLICKED, NULL);
+    } else if (index == 1) {
         lv_obj_add_event_cb(button, open_settings_ui, LV_EVENT_CLICKED, NULL);
     } else if (index == 2) {
         lv_obj_add_event_cb(button, open_motion_detection, LV_EVENT_CLICKED, NULL);
     }
 
     lv_obj_t *icon;
-    if (index == 1) {
+    /* Tiles 0-2 use generated RGB565 image descriptors, not font glyphs. */
+    if (index == 0) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &ftp_icon);
+    } else if (index == 1) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &settings_icon);
     } else if (index == 2) {

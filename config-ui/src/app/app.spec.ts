@@ -15,10 +15,11 @@ describe('App', () => {
     expect(app).toBeTruthy();
   });
 
-  it('should render title', async () => {
+  it('should render the file explorer tab', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, config-ui');
+    expect(compiled.querySelector('[role="tab"]')?.textContent).toContain('Files');
+    expect(compiled.querySelector('app-file-explorer')).toBeTruthy();
   });
 });

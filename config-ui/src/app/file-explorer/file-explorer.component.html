@@ -1,0 +1,58 @@
+<section class="explorer" aria-labelledby="file-explorer-title">
+  <div class="explorer-header">
+    <div>
+      <h2 id="file-explorer-title">File explorer</h2>
+      <p>{{ pathLabel() }}</p>
+    </div>
+    <button type="button" class="up-button" [disabled]="currentPath() === '/'" (click)="navigateUp()">
+      Up
+    </button>
+  </div>
+
+  <div class="actions">
+    <label class="button">
+      Upload
+      <input type="file" multiple (change)="uploadFiles($event)" />
+    </label>
+    <button type="button" [disabled]="selectedEntry() === null" (click)="deleteSelected()">Delete</button>
+    <input
+      type="text"
+      placeholder="New directory name"
+      [value]="newDirectoryName()"
+      (input)="newDirectoryName.set($any($event.target).value)"
+      (keyup.enter)="createDirectory()"
+    />
+    <button type="button" (click)="createDirectory()">Create directory</button>
+  </div>
+
+  <p class="status" aria-live="polite">{{ status() }}</p>
+
+  <div class="file-list" role="grid" aria-label="Files and directories">
+    <div class="file-row file-head" role="row">
+      <span>Name</span><span>Size</span><span>Modified</span>
+    </div>
+    @for (entry of entries(); track entry.name) {
+      <button
+        type="button"
+        class="file-row"
+        role="row"
+        [class.selected]="isSelected(entry)"
+        (click)="selectEntry(entry)"
+        (dblclick)="openEntry(entry)"
+      >
+        <span class="name">
+          <img
+            class="entry-icon"
+            [src]="entry.kind === 'directory' ? '/icons/folder.svg' : '/icons/file.svg'"
+            [alt]="entry.kind === 'directory' ? 'Folder' : 'File'"
+          />
+          {{ entry.name }}
+        </span>
+        <span>{{ formatSize(entry.size) }}</span>
+        <span>{{ formatModified(entry.modified) }}</span>
+      </button>
+    } @empty {
+      <p class="empty">This directory is empty.</p>
+    }
+  </div>
+</section>
