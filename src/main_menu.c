@@ -8,17 +8,22 @@
 #include "assets/microphone_icon.h"
 #include "assets/multimedia_player_icon.h"
 #include "assets/ntp_client_icon.h"
+#include "assets/radio_station_icon.h"
 #include "assets/running_icon.h"
 #include "assets/settings_icon.h"
+#include "assets/wifi_icon.h"
 #include "ftp_server.h"
 #include "motion_detection.h"
 #include "microphone_recorder.h"
 #include "multimedia_player.h"
 #include "ntp_client.h"
+#include "internet_radio.h"
 #include "power_button.h"
 #include "settings_ui.h"
 #include "steps_meter.h"
 #include "ui_theme.h"
+#include "wifi_manager.h"
+#include "wifi_network.h"
 
 /* The 3-by-3 grid is sized for the 410-by-502 AMOLED display. */
 #define MENU_COLUMN_COUNT 3
@@ -160,6 +165,36 @@ static void request_multimedia_player(lv_event_t *event)
     lv_async_call(open_multimedia_player, NULL);
 }
 
+static void open_wifi_manager(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    wifi_manager_create();
+}
+
+static void request_wifi_manager(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_wifi_manager, NULL);
+}
+
+static void open_internet_radio(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    internet_radio_create();
+}
+
+static void request_internet_radio(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_internet_radio, NULL);
+}
+
 static const char *battery_icon(uint8_t percent)
 {
     if (percent <= 10) {
@@ -190,6 +225,16 @@ static void create_toolbar(lv_obj_t *parent)
     lv_obj_set_style_radius(toolbar, 0, 0);
     lv_obj_set_style_bg_color(toolbar, lv_color_hex(0x0E0E0E), 0);
     lv_obj_set_style_pad_left(toolbar, MENU_PADDING, 0);
+
+    lv_obj_t *wifi_label = lv_label_create(toolbar);
+    lv_label_set_text(wifi_label, LV_SYMBOL_WIFI);
+    lv_obj_set_style_text_font(wifi_label, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(wifi_label,
+                                wifi_network_station_has_valid_ip()
+                                    ? lv_color_hex(0xFF7A00)
+                                    : lv_color_hex(0x5A5A5A),
+                                0);
+    lv_obj_align(wifi_label, LV_ALIGN_LEFT_MID, 20, 0);
 
     lv_obj_t *battery_label = lv_label_create(toolbar);
     uint8_t percent;
@@ -226,6 +271,10 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
         lv_obj_add_event_cb(button, request_microphone_recorder, LV_EVENT_CLICKED, NULL);
     } else if (index == 6) {
         lv_obj_add_event_cb(button, request_multimedia_player, LV_EVENT_CLICKED, NULL);
+    } else if (index == 7) {
+        lv_obj_add_event_cb(button, request_wifi_manager, LV_EVENT_CLICKED, NULL);
+    } else if (index == 8) {
+        lv_obj_add_event_cb(button, request_internet_radio, LV_EVENT_CLICKED, NULL);
     }
 
     lv_obj_t *icon;
@@ -251,6 +300,12 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
     } else if (index == 6) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &multimedia_player_icon);
+    } else if (index == 7) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &wifi_icon);
+    } else if (index == 8) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &radio_station_icon);
     } else {
         icon = lv_label_create(button);
         lv_label_set_text(icon, menu_icons[index]);
@@ -293,4 +348,5 @@ void main_menu_create(void)
     }
 
     create_toolbar(menu);
+    lv_obj_invalidate(menu);
 }

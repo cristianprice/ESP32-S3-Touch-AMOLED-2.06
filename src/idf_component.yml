@@ -4,3 +4,5 @@ dependencies:
   lvgl/lvgl:
     version: "9.5.0"
     public: true
+  chmorgan/esp-libhelix-mp3:
+    version: "1.0.3"

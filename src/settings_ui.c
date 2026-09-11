@@ -44,6 +44,7 @@ static httpd_handle_t http_server;
 static bool spiffs_initialized;
 static bool spiffs_mount_failed;
 static volatile bool settings_view_active;
+static bool settings_started_network;
 
 static esp_err_t send_status(httpd_req_t *request, const char *status, const char *message)
 {
@@ -429,17 +430,24 @@ static void settings_ui_stop(void)
         spiffs_initialized = false;
     }
     sd_card_unmount();
-    wifi_network_stop();
+    if (settings_started_network) {
+        wifi_network_stop();
+        settings_started_network = false;
+    }
 }
 
 static esp_err_t settings_ui_start(void)
 {
     spiffs_mount_failed = false;
 
-    esp_err_t result = wifi_network_start_ap(CONFIG_AP_SSID, CAPTIVE_PORTAL_URI);
-    if (result != ESP_OK)
-    {
-        goto fail;
+    esp_err_t result = ESP_OK;
+    if (!wifi_network_station_has_valid_ip()) {
+        result = wifi_network_start_ap(CONFIG_AP_SSID, CAPTIVE_PORTAL_URI);
+        if (result != ESP_OK)
+        {
+            goto fail;
+        }
+        settings_started_network = true;
     }
 
     /* Static Angular output is uploaded to the `storage` SPIFFS partition. */
@@ -542,6 +550,7 @@ void settings_ui_create(void)
     /* Do not enter inactivity sleep while the user configures the device. */
     sleep_timer_pause();
     settings_view_active = true;
+    settings_started_network = false;
 
     lv_obj_t *screen = lv_screen_active();
     lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
@@ -558,7 +567,13 @@ void settings_ui_create(void)
     lv_obj_align(message, LV_ALIGN_CENTER, 0, -24);
 
     lv_obj_t *connection = lv_label_create(screen);
-    lv_label_set_text(connection, "Connect to WatchConfig and open 192.168.4.1");
+    char address[16];
+    if (wifi_network_station_has_valid_ip() &&
+        wifi_network_get_ip(address, sizeof(address)) == ESP_OK) {
+        lv_label_set_text_fmt(connection, "Open http://%s in your browser", address);
+    } else {
+        lv_label_set_text(connection, "Connect to WatchConfig and open 192.168.4.1");
+    }
     lv_obj_set_width(connection, 360);
     lv_label_set_long_mode(connection, LV_LABEL_LONG_MODE_WRAP);
     lv_obj_set_style_text_align(connection, LV_TEXT_ALIGN_CENTER, 0);

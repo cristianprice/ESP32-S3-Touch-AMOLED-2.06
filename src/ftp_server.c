@@ -425,7 +425,13 @@ static void request_menu_return(lv_event_t *event)
 static void begin_ftp(lv_event_t *event)
 {
     lv_obj_t *status = lv_event_get_user_data(event);
-    lv_label_set_text(status, "Starting WatchFTP at 192.168.4.1...");
+    char address[16];
+    if (wifi_network_station_has_valid_ip() &&
+        wifi_network_get_ip(address, sizeof(address)) == ESP_OK) {
+        lv_label_set_text_fmt(status, "Starting FTP server at %s...", address);
+    } else {
+        lv_label_set_text(status, "Starting WatchFTP at 192.168.4.1...");
+    }
     if (xTaskCreatePinnedToCoreWithCaps(start_ftp_task, "ftp_setup", 6144, NULL,
                                         FTP_TASK_PRIORITY, NULL, FTP_TASK_CORE,
                                         FTP_TASK_CAPS) != pdPASS) {

@@ -13,6 +13,7 @@
 #include "main_menu.h"
 #include "nvs_flash.h"
 #include "ui_theme.h"
+#include "wifi_network.h"
 
 #define CSI_SAMPLE_QUEUE_LENGTH 32
 #define CSI_CHART_POINT_COUNT 60
@@ -40,6 +41,7 @@ static bool csi_enabled;
 static uint16_t previous_csi_magnitude;
 static uint8_t wifi_channel = 1;
 static uint8_t channel_switch_ticks;
+static bool using_existing_station;
 
 static void log_cleanup_error(const char *operation, esp_err_t result)
 {
@@ -88,6 +90,7 @@ static void motion_detection_stop(void)
     previous_csi_magnitude = 0;
     wifi_channel = 1;
     channel_switch_ticks = 0;
+    using_existing_station = false;
 }
 
 static void csi_received(void *context, wifi_csi_info_t *data)
@@ -119,7 +122,7 @@ static void update_chart(lv_timer_t *timer)
     (void)timer;
 
     channel_switch_ticks++;
-    if (channel_switch_ticks == WIFI_CHANNEL_SWITCH_TICKS) {
+    if (!using_existing_station && channel_switch_ticks == WIFI_CHANNEL_SWITCH_TICKS) {
         channel_switch_ticks = 0;
         esp_err_t result = esp_wifi_set_channel(wifi_channel, WIFI_SECOND_CHAN_NONE);
         if (result != ESP_OK) {
@@ -159,32 +162,36 @@ static esp_err_t motion_detection_start(void)
         return ESP_ERR_NO_MEM;
     }
 
-    esp_err_t result = nvs_flash_init();
-    if (result != ESP_OK) {
-        goto fail;
-    }
-    nvs_initialized = true;
+    esp_err_t result;
+    using_existing_station = wifi_network_station_is_started();
+    if (!using_existing_station) {
+        result = nvs_flash_init();
+        if (result != ESP_OK) {
+            goto fail;
+        }
+        nvs_initialized = true;
 
-    wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
-    result = esp_wifi_init(&wifi_config);
-    if (result != ESP_OK) {
-        goto fail;
-    }
-    wifi_initialized = true;
+        wifi_init_config_t wifi_config = WIFI_INIT_CONFIG_DEFAULT();
+        result = esp_wifi_init(&wifi_config);
+        if (result != ESP_OK) {
+            goto fail;
+        }
+        wifi_initialized = true;
 
-    /*
-     * Promiscuous station mode receives nearby packets without joining an AP.
-     * Channel hopping makes the chart useful in environments with unknown APs.
-     */
-    result = esp_wifi_set_mode(WIFI_MODE_STA);
-    if (result != ESP_OK) {
-        goto fail;
+        /*
+         * Promiscuous station mode receives nearby packets without joining an AP.
+         * Channel hopping makes the chart useful in environments with unknown APs.
+         */
+        result = esp_wifi_set_mode(WIFI_MODE_STA);
+        if (result != ESP_OK) {
+            goto fail;
+        }
+        result = esp_wifi_start();
+        if (result != ESP_OK) {
+            goto fail;
+        }
+        wifi_started = true;
     }
-    result = esp_wifi_start();
-    if (result != ESP_OK) {
-        goto fail;
-    }
-    wifi_started = true;
 
     result = esp_wifi_set_ps(WIFI_PS_NONE);
     if (result != ESP_OK) {
