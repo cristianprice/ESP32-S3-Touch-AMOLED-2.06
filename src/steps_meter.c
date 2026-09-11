@@ -244,7 +244,9 @@ static void update_elapsed_time(lv_timer_t *timer)
     if (last_step_at_us != 0 && now_us - last_step_at_us > STEP_MAXIMUM_INTERVAL_US) {
         current_speed_kmh = 0.0f;
     }
-    lv_label_set_text_fmt(speed_label, "Speed: %.1f km/h", current_speed_kmh);
+    uint32_t speed_tenths = (uint32_t)(current_speed_kmh * 10.0f + 0.5f);
+    lv_label_set_text_fmt(speed_label, "Speed: %" PRIu32 ".%" PRIu32 " km/h",
+                          speed_tenths / 10, speed_tenths % 10);
     lv_label_set_text_fmt(steps_label, "Steps: %" PRIu32, total_steps);
 
     int64_t elapsed_seconds = (esp_timer_get_time() - session_started_at_us) / 1000000;
@@ -296,9 +298,9 @@ void steps_meter_create(void)
     session_started_at_us = esp_timer_get_time();
 
     lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x061826), 0);
-    lv_obj_set_style_bg_grad_color(screen, lv_color_hex(0x102C42), 0);
-    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_grad_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 
     lv_obj_t *title = lv_label_create(screen);
     lv_label_set_text(title, "Steps meter");

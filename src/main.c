@@ -15,9 +15,9 @@
  */
 static bool main_menu_open;
 
-static void open_main_menu(lv_event_t *event)
+static void open_main_menu(void *user_data)
 {
-    (void)event;
+    (void)user_data;
 
     sleep_timer_reset();
 
@@ -29,6 +29,13 @@ static void open_main_menu(lv_event_t *event)
     time_mgmt_stop();
     lv_obj_clean(lv_screen_active());
     main_menu_create();
+}
+
+static void request_main_menu(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_main_menu, NULL);
 }
 
 void app_main(void)
@@ -54,7 +61,7 @@ void app_main(void)
     /* The first touch replaces the clock screen with the main menu. */
     lv_indev_t *touch_input = bsp_display_get_input_dev();
     assert(touch_input != NULL);
-    lv_indev_add_event_cb(touch_input, open_main_menu, LV_EVENT_PRESSED, NULL);
+    lv_indev_add_event_cb(touch_input, request_main_menu, LV_EVENT_PRESSED, NULL);
 
     bsp_display_unlock();
 

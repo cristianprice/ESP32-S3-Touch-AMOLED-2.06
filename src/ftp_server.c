@@ -17,7 +17,6 @@
 #include "lwip/sockets.h"
 #include "lvgl.h"
 #include "bsp/esp-bsp.h"
-#include "assets/abstract_timekeeper.h"
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
@@ -440,10 +439,9 @@ void ftp_server_create(void)
     ftp_view_active = true;
 
     lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x061826), 0);
-    lv_obj_t *background = lv_image_create(screen);
-    lv_image_set_src(background, &abstract_timekeeper);
-    lv_obj_center(background);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_grad_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 
     lv_obj_t *title = lv_label_create(screen);
     lv_label_set_text(title, "FTP server");

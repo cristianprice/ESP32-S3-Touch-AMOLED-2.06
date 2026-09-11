@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include <stdio.h>
+#include <time.h>
 
 #include "driver/i2c_master.h"
 #include "esp_log.h"
@@ -258,6 +259,29 @@ esp_err_t time_mgmt_save(void)
     }
 
     return write_datetime(&datetime);
+}
+
+esp_err_t time_mgmt_set_utc(time_t utc_time)
+{
+    if (!time_mgmt_is_initialized()) {
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    struct tm utc_datetime;
+    if (gmtime_r(&utc_time, &utc_datetime) == NULL) {
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    rtc_datetime_t datetime = {
+        .seconds = utc_datetime.tm_sec,
+        .minutes = utc_datetime.tm_min,
+        .hours = utc_datetime.tm_hour,
+        .day = utc_datetime.tm_mday,
+        .weekday = utc_datetime.tm_wday,
+        .month = utc_datetime.tm_mon + 1,
+        .year = utc_datetime.tm_year + 1900,
+    };
+    return datetime_is_valid(&datetime) ? write_datetime(&datetime) : ESP_ERR_INVALID_ARG;
 }
 
 void time_mgmt_stop(void)

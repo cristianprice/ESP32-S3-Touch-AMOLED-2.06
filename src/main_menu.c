@@ -5,10 +5,16 @@
 #include "assets/chart_icon.h"
 #include "assets/abstract_timekeeper.h"
 #include "assets/ftp_icon.h"
+#include "assets/microphone_icon.h"
+#include "assets/multimedia_player_icon.h"
+#include "assets/ntp_client_icon.h"
 #include "assets/running_icon.h"
 #include "assets/settings_icon.h"
 #include "ftp_server.h"
 #include "motion_detection.h"
+#include "microphone_recorder.h"
+#include "multimedia_player.h"
+#include "ntp_client.h"
 #include "power_button.h"
 #include "settings_ui.h"
 #include "steps_meter.h"
@@ -40,9 +46,9 @@ static const char *const menu_icons[] = {
     NULL,
     NULL,
     NULL,
-    LV_SYMBOL_LOOP,
-    LV_SYMBOL_UP,
-    LV_SYMBOL_LIST,
+    NULL,
+    NULL,
+    NULL,
     LV_SYMBOL_EYE_OPEN,
     LV_SYMBOL_BELL,
 };
@@ -109,6 +115,51 @@ static void request_steps_meter(lv_event_t *event)
     lv_async_call(open_steps_meter, NULL);
 }
 
+static void open_ntp_client(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    ntp_client_create();
+}
+
+static void request_ntp_client(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_ntp_client, NULL);
+}
+
+static void open_microphone_recorder(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    microphone_recorder_create();
+}
+
+static void request_microphone_recorder(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_microphone_recorder, NULL);
+}
+
+static void open_multimedia_player(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    multimedia_player_create();
+}
+
+static void request_multimedia_player(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_multimedia_player, NULL);
+}
+
 static const char *battery_icon(uint8_t percent)
 {
     if (percent <= 10) {
@@ -169,10 +220,16 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
         lv_obj_add_event_cb(button, request_motion_detection, LV_EVENT_CLICKED, NULL);
     } else if (index == 3) {
         lv_obj_add_event_cb(button, request_steps_meter, LV_EVENT_CLICKED, NULL);
+    } else if (index == 4) {
+        lv_obj_add_event_cb(button, request_ntp_client, LV_EVENT_CLICKED, NULL);
+    } else if (index == 5) {
+        lv_obj_add_event_cb(button, request_microphone_recorder, LV_EVENT_CLICKED, NULL);
+    } else if (index == 6) {
+        lv_obj_add_event_cb(button, request_multimedia_player, LV_EVENT_CLICKED, NULL);
     }
 
     lv_obj_t *icon;
-    /* Tiles 0-3 use generated RGB565 image descriptors, not font glyphs. */
+    /* Tiles 0-6 use generated RGB565 image descriptors, not font glyphs. */
     if (index == 0) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &ftp_icon);
@@ -185,6 +242,15 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
     } else if (index == 3) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &running_icon);
+    } else if (index == 4) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &ntp_client_icon);
+    } else if (index == 5) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &microphone_icon);
+    } else if (index == 6) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &multimedia_player_icon);
     } else {
         icon = lv_label_create(button);
         lv_label_set_text(icon, menu_icons[index]);

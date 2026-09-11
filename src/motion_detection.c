@@ -257,9 +257,19 @@ void motion_detection_create(void)
     sleep_timer_pause();
 
     lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x061826), 0);
-    lv_obj_set_style_bg_grad_color(screen, lv_color_hex(0x102C42), 0);
-    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, 0);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_grad_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
+    lv_obj_invalidate(screen);
+
+    lv_obj_t *background = lv_obj_create(screen);
+    lv_obj_remove_flag(background, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_size(background, LV_PCT(100), LV_PCT(100));
+    lv_obj_align(background, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_color(background, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(background, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(background, 0, 0);
+    lv_obj_set_style_radius(background, 0, 0);
 
     lv_obj_t *title = lv_label_create(screen);
     lv_label_set_text(title, "Motion detection");
@@ -292,6 +302,10 @@ void motion_detection_create(void)
     lv_obj_t *back_label = lv_label_create(back_button);
     lv_label_set_text(back_label, LV_SYMBOL_LEFT " Back");
     lv_obj_center(back_label);
+
+    /* Flush the complete view before Wi-Fi startup can delay the LVGL task. */
+    lv_obj_invalidate(screen);
+    lv_refr_now(NULL);
 
     esp_err_t result = motion_detection_start();
     if (result != ESP_OK) {

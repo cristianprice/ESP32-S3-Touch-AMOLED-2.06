@@ -20,7 +20,6 @@
 #include "sd_card.h"
 #include "ui_theme.h"
 #include "wifi_network.h"
-#include "assets/abstract_timekeeper.h"
 
 #define CONFIG_AP_SSID "WatchConfig"
 #define CONFIG_AP_CHANNEL 1
@@ -545,13 +544,9 @@ void settings_ui_create(void)
     settings_view_active = true;
 
     lv_obj_t *screen = lv_screen_active();
-    lv_obj_set_style_bg_color(screen, lv_color_hex(0x061826), 0);
-    lv_obj_set_style_bg_grad_color(screen, lv_color_hex(0x102C42), 0);
-    lv_obj_set_style_bg_grad_dir(screen, LV_GRAD_DIR_VER, 0);
-
-    lv_obj_t *background = lv_image_create(screen);
-    lv_image_set_src(background, &abstract_timekeeper);
-    lv_obj_center(background);
+    lv_obj_set_style_bg_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_grad_color(screen, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(screen, LV_OPA_COVER, 0);
 
     lv_obj_t *message = lv_label_create(screen);
     lv_label_set_text(message, "Web app waiting for configuration");
