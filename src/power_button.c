@@ -64,12 +64,12 @@ static void power_button_task(void *argument)
         }
 
         if ((interrupt_status & AXP2101_PKEY_SHORT_PRESS_BIT) != 0) {
-            /* A short physical-button press counts as activity, not a sleep request. */
+            /* The physical power button sleeps immediately, independent of inactivity state. */
             result = write_register(AXP2101_REG_INTSTS2, AXP2101_PKEY_SHORT_PRESS_BIT);
             if (result != ESP_OK) {
                 ESP_LOGE(TAG, "Failed to clear AXP2101 button status: %s", esp_err_to_name(result));
             } else {
-                sleep_timer_reset();
+                deep_sleep_immediately();
             }
         }
 

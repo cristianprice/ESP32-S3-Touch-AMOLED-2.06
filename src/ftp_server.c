@@ -21,6 +21,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
+#include "ui_theme.h"
 #include "wifi_network.h"
 
 #define FTP_AP_SSID "WatchFTP"
@@ -404,14 +405,22 @@ static void start_ftp_task(void *argument)
     vTaskDelete(NULL);
 }
 
-static void return_to_menu(lv_event_t *event)
+static void return_to_menu(void *user_data)
 {
-    (void)event;
+    (void)user_data;
+
     ftp_view_active = false;
     stop_ftp_service();
     lv_obj_clean(lv_screen_active());
     main_menu_create();
     sleep_timer_resume();
+}
+
+static void request_menu_return(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(return_to_menu, NULL);
 }
 
 static void begin_ftp(lv_event_t *event)
@@ -454,6 +463,7 @@ void ftp_server_create(void)
 
     lv_obj_t *start_button = lv_button_create(screen);
     lv_obj_set_size(start_button, 110, 44);
+    ui_theme_apply_button(start_button);
     lv_obj_align(start_button, LV_ALIGN_CENTER, -65, 72);
     lv_obj_add_event_cb(start_button, begin_ftp, LV_EVENT_CLICKED, status);
     lv_obj_t *start_label = lv_label_create(start_button);
@@ -462,8 +472,9 @@ void ftp_server_create(void)
 
     lv_obj_t *back_button = lv_button_create(screen);
     lv_obj_set_size(back_button, 110, 44);
+    ui_theme_apply_button(back_button);
     lv_obj_align(back_button, LV_ALIGN_CENTER, 65, 72);
-    lv_obj_add_event_cb(back_button, return_to_menu, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(back_button, request_menu_return, LV_EVENT_CLICKED, NULL);
     lv_obj_t *back_label = lv_label_create(back_button);
     lv_label_set_text(back_label, "No");
     lv_obj_center(back_label);

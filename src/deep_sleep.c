@@ -18,10 +18,10 @@ static bool sleep_timer_paused;
 static void sleep_timer_callback(TimerHandle_t timer)
 {
     (void)timer;
-    deep_sleep_now();
+    deep_sleep_immediately();
 }
 
-void deep_sleep_now(void)
+void deep_sleep_immediately(void)
 {
     if (time_mgmt_is_initialized()) {
         ESP_ERROR_CHECK(time_mgmt_save());

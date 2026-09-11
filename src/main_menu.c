@@ -5,11 +5,14 @@
 #include "assets/chart_icon.h"
 #include "assets/abstract_timekeeper.h"
 #include "assets/ftp_icon.h"
+#include "assets/running_icon.h"
 #include "assets/settings_icon.h"
 #include "ftp_server.h"
 #include "motion_detection.h"
 #include "power_button.h"
 #include "settings_ui.h"
+#include "steps_meter.h"
+#include "ui_theme.h"
 
 /* The 3-by-3 grid is sized for the 410-by-502 AMOLED display. */
 #define MENU_COLUMN_COUNT 3
@@ -36,7 +39,7 @@ static const char *const menu_icons[] = {
     NULL,
     NULL,
     NULL,
-    LV_SYMBOL_PLAY,
+    NULL,
     LV_SYMBOL_LOOP,
     LV_SYMBOL_UP,
     LV_SYMBOL_LIST,
@@ -46,29 +49,64 @@ static const char *const menu_icons[] = {
 
 #define MENU_BUTTON_COUNT (sizeof(menu_icons) / sizeof(menu_icons[0]))
 
-static void open_motion_detection(lv_event_t *event)
+static void open_motion_detection(void *user_data)
 {
-    (void)event;
+    (void)user_data;
 
-    /* Discard the previous screen before creating the tool's full-screen UI. */
     lv_obj_clean(lv_screen_active());
     motion_detection_create();
 }
 
-static void open_settings_ui(lv_event_t *event)
+static void request_motion_detection(lv_event_t *event)
 {
     (void)event;
+
+    lv_async_call(open_motion_detection, NULL);
+}
+
+static void open_settings_ui(void *user_data)
+{
+    (void)user_data;
 
     lv_obj_clean(lv_screen_active());
     settings_ui_create();
 }
 
-static void open_ftp_server(lv_event_t *event)
+static void request_settings_ui(lv_event_t *event)
 {
     (void)event;
 
+    lv_async_call(open_settings_ui, NULL);
+}
+
+static void open_ftp_server(void *user_data)
+{
+    (void)user_data;
+
     lv_obj_clean(lv_screen_active());
     ftp_server_create();
+}
+
+static void request_ftp_server(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_ftp_server, NULL);
+}
+
+static void open_steps_meter(void *user_data)
+{
+    (void)user_data;
+
+    lv_obj_clean(lv_screen_active());
+    steps_meter_create();
+}
+
+static void request_steps_meter(lv_event_t *event)
+{
+    (void)event;
+
+    lv_async_call(open_steps_meter, NULL);
 }
 
 static const char *battery_icon(uint8_t percent)
@@ -122,25 +160,19 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
     lv_obj_set_size(button, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT);
     lv_obj_set_grid_cell(button, LV_GRID_ALIGN_CENTER, index % MENU_COLUMN_COUNT, 1,
                          LV_GRID_ALIGN_CENTER, index / MENU_COLUMN_COUNT, 1);
-    lv_obj_set_style_radius(button, 16, 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x1C1C1C), 0);
-    lv_obj_set_style_bg_color(button, lv_color_hex(0x303030), LV_STATE_PRESSED);
-    lv_obj_set_style_border_width(button, 2, 0);
-    lv_obj_set_style_border_color(button, lv_color_hex(0xFF7A00), 0);
-    lv_obj_set_style_shadow_color(button, lv_color_black(), 0);
-    lv_obj_set_style_shadow_width(button, 8, 0);
-    lv_obj_set_style_shadow_opa(button, LV_OPA_60, 0);
-    lv_obj_set_style_shadow_offset_y(button, 4, 0);
+    ui_theme_apply_button(button);
     if (index == 0) {
-        lv_obj_add_event_cb(button, open_ftp_server, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(button, request_ftp_server, LV_EVENT_CLICKED, NULL);
     } else if (index == 1) {
-        lv_obj_add_event_cb(button, open_settings_ui, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(button, request_settings_ui, LV_EVENT_CLICKED, NULL);
     } else if (index == 2) {
-        lv_obj_add_event_cb(button, open_motion_detection, LV_EVENT_CLICKED, NULL);
+        lv_obj_add_event_cb(button, request_motion_detection, LV_EVENT_CLICKED, NULL);
+    } else if (index == 3) {
+        lv_obj_add_event_cb(button, request_steps_meter, LV_EVENT_CLICKED, NULL);
     }
 
     lv_obj_t *icon;
-    /* Tiles 0-2 use generated RGB565 image descriptors, not font glyphs. */
+    /* Tiles 0-3 use generated RGB565 image descriptors, not font glyphs. */
     if (index == 0) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &ftp_icon);
@@ -150,6 +182,9 @@ static void create_menu_button(lv_obj_t *parent, uint32_t index)
     } else if (index == 2) {
         icon = lv_image_create(button);
         lv_image_set_src(icon, &chart_icon);
+    } else if (index == 3) {
+        icon = lv_image_create(button);
+        lv_image_set_src(icon, &running_icon);
     } else {
         icon = lv_label_create(button);
         lv_label_set_text(icon, menu_icons[index]);
