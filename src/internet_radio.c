@@ -17,6 +17,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "mp3dec.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 #include "wifi_network.h"
 
@@ -659,18 +660,18 @@ static void return_to_main_menu(void *user_data)
         radio_ui_timer = NULL;
     }
     /*
-     * This is deliberately an lv_async_call target. Cleaning the active screen
+     * This is deliberately an asynchronous-dispatch target. Cleaning the active screen
      * within Back's event callback could delete the callback's event target.
      */
     lv_obj_clean(lv_screen_active());
-    lv_async_call(create_main_menu, NULL);
+    ui_async_call(create_main_menu, NULL);
     sleep_timer_resume();
 }
 
 static void request_main_menu(lv_event_t *event)
 {
     (void)event;
-    lv_async_call(return_to_main_menu, NULL);
+    ui_async_call(return_to_main_menu, NULL);
 }
 
 static void refresh_radio_ui(lv_timer_t *timer)

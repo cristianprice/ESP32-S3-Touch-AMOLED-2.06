@@ -17,6 +17,7 @@
 #include "lvgl.h"
 #include "deep_sleep.h"
 #include "main_menu.h"
+#include "ui_dispatch.h"
 #include "time_mgmt.h"
 #include "ui_theme.h"
 
@@ -229,7 +230,7 @@ static void request_main_menu(lv_event_t *event)
     (void)event;
 
     /* Do not delete the event target synchronously from its own callback. */
-    lv_async_call(return_to_main_menu, NULL);
+    ui_async_call(return_to_main_menu, NULL);
 }
 
 void ntp_client_create(void)

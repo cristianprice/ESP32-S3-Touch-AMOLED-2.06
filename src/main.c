@@ -8,6 +8,7 @@
 #include "main_menu.h"
 #include "power_button.h"
 #include "time_mgmt.h"
+#include "ui_dispatch.h"
 
 /*
  * Application composition root. It establishes the BSP display and initial
@@ -41,7 +42,7 @@ static void request_main_menu(lv_event_t *event)
     (void)event;
 
     /* Input callbacks defer destruction of the current screen until LVGL's safe queue. */
-    lv_async_call(open_main_menu, NULL);
+    ui_async_call(open_main_menu, NULL);
 }
 
 void app_main(void)

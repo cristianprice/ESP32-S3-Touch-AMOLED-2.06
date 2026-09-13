@@ -21,6 +21,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 
 /*
@@ -409,7 +410,7 @@ static void request_stop_recording(lv_event_t *event)
     (void)event;
 
     if (recording_state == RECORDING_SAVED || recording_state == RECORDING_FAILED) {
-        lv_async_call(return_to_main_menu, NULL);
+        ui_async_call(return_to_main_menu, NULL);
         return;
     }
     if (recording_state != RECORDING_STARTING && recording_state != RECORDING_ACTIVE) {

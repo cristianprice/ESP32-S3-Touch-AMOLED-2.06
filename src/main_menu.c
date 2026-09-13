@@ -21,6 +21,7 @@
 #include "power_button.h"
 #include "settings_ui.h"
 #include "steps_meter.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 #include "wifi_manager.h"
 #include "wifi_network.h"
@@ -77,7 +78,7 @@ static void request_motion_detection(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_motion_detection, NULL);
+    ui_async_call(open_motion_detection, NULL);
 }
 
 static void open_settings_ui(void *user_data)
@@ -92,7 +93,7 @@ static void request_settings_ui(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_settings_ui, NULL);
+    ui_async_call(open_settings_ui, NULL);
 }
 
 static void open_ftp_server(void *user_data)
@@ -107,7 +108,7 @@ static void request_ftp_server(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_ftp_server, NULL);
+    ui_async_call(open_ftp_server, NULL);
 }
 
 static void open_steps_meter(void *user_data)
@@ -122,7 +123,7 @@ static void request_steps_meter(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_steps_meter, NULL);
+    ui_async_call(open_steps_meter, NULL);
 }
 
 static void open_ntp_client(void *user_data)
@@ -137,7 +138,7 @@ static void request_ntp_client(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_ntp_client, NULL);
+    ui_async_call(open_ntp_client, NULL);
 }
 
 static void open_microphone_recorder(void *user_data)
@@ -152,7 +153,7 @@ static void request_microphone_recorder(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_microphone_recorder, NULL);
+    ui_async_call(open_microphone_recorder, NULL);
 }
 
 static void open_multimedia_player(void *user_data)
@@ -167,7 +168,7 @@ static void request_multimedia_player(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_multimedia_player, NULL);
+    ui_async_call(open_multimedia_player, NULL);
 }
 
 static void open_wifi_manager(void *user_data)
@@ -182,7 +183,7 @@ static void request_wifi_manager(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_wifi_manager, NULL);
+    ui_async_call(open_wifi_manager, NULL);
 }
 
 static void open_internet_radio(void *user_data)
@@ -197,7 +198,7 @@ static void request_internet_radio(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(open_internet_radio, NULL);
+    ui_async_call(open_internet_radio, NULL);
 }
 
 static const char *battery_icon(uint8_t percent)

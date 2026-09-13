@@ -17,6 +17,7 @@
 #include "lvgl.h"
 #include "deep_sleep.h"
 #include "main_menu.h"
+#include "ui_dispatch.h"
 #include "sd_card.h"
 #include "ui_theme.h"
 #include "wifi_network.h"
@@ -560,7 +561,7 @@ static void request_main_menu(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(back_to_main_menu, NULL);
+    ui_async_call(back_to_main_menu, NULL);
 }
 
 void settings_ui_create(void)

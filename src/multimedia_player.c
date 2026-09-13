@@ -21,6 +21,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 
 /*
@@ -112,7 +113,7 @@ static bool is_wav_filename(const char *name)
 static void request_return_to_main_menu(lv_event_t *event)
 {
     (void)event;
-    lv_async_call(return_to_main_menu, NULL);
+    ui_async_call(return_to_main_menu, NULL);
 }
 
 static bool is_root_directory(void)
@@ -348,13 +349,13 @@ static void select_entry(lv_event_t *event)
         } else {
             snprintf(current_directory, sizeof(current_directory), "%s", path);
         }
-        lv_async_call(show_browser, NULL);
+        ui_async_call(show_browser, NULL);
         return;
     }
 
     snprintf(selected_path, sizeof(selected_path), "%s", path);
     snprintf(selected_name, sizeof(selected_name), "%s", entry->name);
-    lv_async_call(show_browser, (void *)true);
+    ui_async_call(show_browser, (void *)true);
 }
 
 static void add_browser_entry(const browser_entry_t *entry)
@@ -761,12 +762,12 @@ static void refresh_player_ui(lv_timer_t *timer)
     /* Defer navigation and destructive work until all workers have quiesced. */
     if (leave_requested && !playback_task_running && !clear_task_running) {
         leave_requested = false;
-        lv_async_call(return_to_main_menu, NULL);
+        ui_async_call(return_to_main_menu, NULL);
         return;
     }
     if (browser_requested && !playback_task_running) {
         browser_requested = false;
-        lv_async_call(show_browser, NULL);
+        ui_async_call(show_browser, NULL);
         return;
     }
     if (play_after_stop && !playback_task_running) {

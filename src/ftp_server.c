@@ -20,6 +20,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 #include "wifi_network.h"
 
@@ -437,7 +438,7 @@ static void request_menu_return(lv_event_t *event)
 {
     (void)event;
 
-    lv_async_call(return_to_menu, NULL);
+    ui_async_call(return_to_menu, NULL);
 }
 
 static void begin_ftp(lv_event_t *event)

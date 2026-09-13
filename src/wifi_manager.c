@@ -16,6 +16,7 @@
 #include "deep_sleep.h"
 #include "main_menu.h"
 #include "sd_card.h"
+#include "ui_dispatch.h"
 #include "ui_theme.h"
 #include "wifi_network.h"
 
@@ -181,7 +182,7 @@ static void return_to_main_menu(void *user_data)
 static void request_main_menu(lv_event_t *event)
 {
     (void)event;
-    lv_async_call(return_to_main_menu, NULL);
+    ui_async_call(return_to_main_menu, NULL);
 }
 
 static void create_back_button(lv_obj_t *screen)
@@ -307,7 +308,7 @@ static void select_network(lv_event_t *event)
     state = WIFI_MANAGER_CREDENTIALS;
     network_list = NULL;
     credential_view_visible = true;
-    lv_async_call(show_credentials, NULL);
+    ui_async_call(show_credentials, NULL);
 }
 
 static void add_network_button(const wifi_ap_record_t *network)
@@ -390,7 +391,7 @@ static void request_network_list(lv_event_t *event)
     (void)event;
     state = WIFI_MANAGER_LISTING;
     network_list = NULL;
-    lv_async_call(show_network_list, NULL);
+    ui_async_call(show_network_list, NULL);
 }
 
 static void begin_connect(lv_event_t *event)
@@ -480,13 +481,13 @@ static void refresh_ui(lv_timer_t *timer)
 
     /* Workers publish state only; this timer owns all LVGL transitions. */
     if (state == WIFI_MANAGER_LISTING && network_list == NULL) {
-        lv_async_call(show_network_list, NULL);
+        ui_async_call(show_network_list, NULL);
     } else if (state == WIFI_MANAGER_CREDENTIALS && !credential_view_visible) {
         credential_view_visible = true;
-        lv_async_call(show_credentials, NULL);
+        ui_async_call(show_credentials, NULL);
     } else if (state == WIFI_MANAGER_CONNECTED) {
         state = WIFI_MANAGER_RETURNING;
-        lv_async_call(return_to_main_menu, NULL);
+        ui_async_call(return_to_main_menu, NULL);
     } else if (state == WIFI_MANAGER_FAILED) {
         lv_label_set_text_fmt(status_label, "Wi-Fi failed: %s", esp_err_to_name(operation_result));
     }
