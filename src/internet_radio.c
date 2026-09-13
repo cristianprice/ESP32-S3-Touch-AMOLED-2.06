@@ -33,6 +33,7 @@
 #define RADIO_AUDIO_PREBUFFER_COUNT 48
 #define RADIO_NETWORK_TASK_STACK_SIZE (16 * 1024)
 #define RADIO_AUDIO_TASK_STACK_SIZE 4096
+#define RADIO_RESTART_TASK_STACK_SIZE 3072
 #define RADIO_TASK_STACK_SIZE (24 * 1024)
 #define RADIO_TASK_PRIORITY 4
 #define RADIO_AUDIO_TASK_PRIORITY 6
@@ -68,9 +69,11 @@ static lv_obj_t *volume_label;
 static volatile radio_state_t radio_state;
 static volatile bool radio_requested;
 static volatile bool radio_paused;
+static volatile bool radio_restart_requested;
 static volatile bool radio_task_running;
 static volatile bool radio_audio_task_running;
 static volatile bool radio_network_task_running;
+static volatile bool radio_restart_task_running;
 static volatile bool volume_changed;
 static volatile uint8_t radio_volume;
 static volatile esp_err_t radio_result;
@@ -82,6 +85,39 @@ static int16_t *radio_output_buffers;
 static QueueHandle_t radio_available_network_buffers;
 static QueueHandle_t radio_ready_network_buffers;
 static uint8_t *radio_network_buffers;
+
+static void radio_stream_task(void *argument);
+static void start_radio_task(void);
+
+static void radio_restart_task(void *argument)
+{
+    (void)argument;
+
+    if (radio_restart_requested && radio_view_active && !radio_task_running &&
+        wifi_network_station_has_valid_ip()) {
+        radio_restart_requested = false;
+        start_radio_task();
+    }
+    radio_restart_task_running = false;
+    vTaskDelete(NULL);
+}
+
+static void start_radio_task(void)
+{
+    radio_requested = true;
+    radio_paused = false;
+    radio_task_running = true;
+    radio_state = RADIO_BUFFERING;
+    if (xTaskCreatePinnedToCoreWithCaps(radio_stream_task, "internet_radio",
+                                        RADIO_TASK_STACK_SIZE, NULL,
+                                        RADIO_TASK_PRIORITY, NULL, RADIO_TASK_CORE,
+                                        RADIO_TASK_CAPS) != pdPASS) {
+        radio_requested = false;
+        radio_task_running = false;
+        radio_result = ESP_ERR_NO_MEM;
+        radio_state = RADIO_FAILED;
+    }
+}
 
 static void downmix_and_resample(const int16_t *input, int input_frames, int input_channels,
                                  int input_rate, int16_t *output, int *output_frames)
@@ -110,6 +146,12 @@ static void radio_audio_task(void *argument)
 
     radio_audio_buffer_t buffer;
     while (radio_requested) {
+        while (radio_requested && radio_paused) {
+            vTaskDelay(pdMS_TO_TICKS(20));
+        }
+        if (!radio_requested) {
+            break;
+        }
         if (xQueueReceive(radio_ready_buffers, &buffer, pdMS_TO_TICKS(50)) != pdTRUE) {
             continue;
         }
@@ -461,12 +503,27 @@ finish:
                  esp_err_to_name(power_save_result));
     }
     radio_result = result;
+    bool restart = radio_restart_requested && radio_view_active &&
+                   wifi_network_station_has_valid_ip();
+    radio_restart_requested = restart;
     radio_task_running = false;
     if (result != ESP_OK) {
         ESP_LOGE(TAG, "Stream failed: %s", esp_err_to_name(result));
         radio_state = RADIO_FAILED;
     } else if (!radio_requested) {
         radio_state = RADIO_STOPPED;
+    }
+    if (restart) {
+        radio_restart_task_running = true;
+        if (xTaskCreatePinnedToCoreWithCaps(radio_restart_task, "radio_restart",
+                                            RADIO_RESTART_TASK_STACK_SIZE, NULL,
+                                            RADIO_TASK_PRIORITY - 1, NULL, RADIO_TASK_CORE,
+                                            RADIO_TASK_CAPS) != pdPASS) {
+            radio_restart_task_running = false;
+            radio_restart_requested = false;
+            radio_result = ESP_ERR_NO_MEM;
+            radio_state = RADIO_FAILED;
+        }
     }
     vTaskDelete(NULL);
 }
@@ -476,6 +533,11 @@ static void start_radio(lv_event_t *event)
     (void)event;
 
     if (radio_task_running) {
+        if (!radio_requested) {
+            radio_restart_requested = true;
+            radio_state = RADIO_BUFFERING;
+            return;
+        }
         radio_paused = !radio_paused;
         radio_state = radio_paused ? RADIO_PAUSED : RADIO_PLAYING;
         return;
@@ -485,26 +547,7 @@ static void start_radio(lv_event_t *event)
         radio_state = RADIO_FAILED;
         return;
     }
-    radio_requested = true;
-    radio_paused = false;
-    radio_task_running = true;
-    radio_state = RADIO_BUFFERING;
-    if (xTaskCreatePinnedToCoreWithCaps(radio_stream_task, "internet_radio",
-                                        RADIO_TASK_STACK_SIZE, NULL,
-                                        RADIO_TASK_PRIORITY, NULL, RADIO_TASK_CORE,
-                                        RADIO_TASK_CAPS) != pdPASS) {
-        radio_requested = false;
-        radio_task_running = false;
-        radio_result = ESP_ERR_NO_MEM;
-        radio_state = RADIO_FAILED;
-    }
-}
-
-static void stop_radio(lv_event_t *event)
-{
-    (void)event;
-    radio_requested = false;
-    radio_paused = false;
+    start_radio_task();
 }
 
 static void update_volume(lv_event_t *event)
@@ -519,6 +562,7 @@ static void return_to_main_menu(void *user_data)
     (void)user_data;
 
     radio_view_active = false;
+    radio_restart_requested = false;
     radio_requested = false;
     radio_paused = false;
     if (radio_ui_timer != NULL) {
@@ -567,6 +611,7 @@ void internet_radio_create(void)
     radio_view_active = true;
     radio_requested = false;
     radio_paused = false;
+    radio_restart_requested = false;
     radio_task_running = false;
     radio_state = RADIO_STOPPED;
     radio_result = ESP_OK;
@@ -608,20 +653,10 @@ void internet_radio_create(void)
     lv_obj_set_style_text_font(play_label, &lv_font_montserrat_48, 0);
     lv_obj_center(play_label);
 
-    lv_obj_t *stop_button = lv_button_create(screen);
-    lv_obj_set_size(stop_button, 72, 44);
-    ui_theme_apply_button(stop_button);
-    lv_obj_align(stop_button, LV_ALIGN_TOP_MID, 0, 312);
-    lv_obj_add_event_cb(stop_button, stop_radio, LV_EVENT_CLICKED, NULL);
-    lv_obj_t *stop_label = lv_label_create(stop_button);
-    lv_label_set_text(stop_label, LV_SYMBOL_STOP " Stop");
-    lv_obj_set_style_text_color(stop_label, lv_color_white(), 0);
-    lv_obj_center(stop_label);
-
     volume_label = lv_label_create(screen);
     lv_label_set_text_fmt(volume_label, "Volume %u%%", radio_volume);
     lv_obj_set_style_text_color(volume_label, lv_color_hex(0xFFB35C), 0);
-    lv_obj_align(volume_label, LV_ALIGN_TOP_MID, 0, 372);
+    lv_obj_align(volume_label, LV_ALIGN_TOP_MID, 0, 332);
 
     lv_obj_t *volume_slider = lv_slider_create(screen);
     lv_obj_set_size(volume_slider, 250, 14);
@@ -630,7 +665,7 @@ void internet_radio_create(void)
     lv_obj_set_style_bg_color(volume_slider, lv_color_hex(0x1C1C1C), 0);
     lv_obj_set_style_bg_color(volume_slider, lv_color_hex(0xFF7A00), LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(volume_slider, lv_color_hex(0xFFB35C), LV_PART_KNOB);
-    lv_obj_align(volume_slider, LV_ALIGN_TOP_MID, 0, 402);
+    lv_obj_align(volume_slider, LV_ALIGN_TOP_MID, 0, 362);
     lv_obj_add_event_cb(volume_slider, update_volume, LV_EVENT_VALUE_CHANGED, NULL);
 
     lv_obj_t *back_button = lv_button_create(screen);
