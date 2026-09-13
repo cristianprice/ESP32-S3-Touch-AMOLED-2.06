@@ -15,6 +15,11 @@
 #include "ui_theme.h"
 #include "wifi_network.h"
 
+/*
+ * Presents an uncalibrated motion indicator derived from Wi-Fi CSI changes.
+ * Wi-Fi-driver callbacks own no UI state: they enqueue scalar measurements,
+ * and the LVGL timer drains that queue while it owns the chart lifecycle.
+ */
 #define CSI_SAMPLE_QUEUE_LENGTH 32
 #define CSI_CHART_POINT_COUNT 60
 #define CSI_CHART_MAX_VALUE 100
@@ -101,6 +106,7 @@ static void csi_received(void *context, wifi_csi_info_t *data)
         return;
     }
 
+    /* ESP32 CSI can flag its first complex I/Q word invalid; skip that pair. */
     size_t start = data->first_word_invalid && data->len >= 6 ? 4 : 0;
     uint32_t total_magnitude = 0;
     size_t complex_sample_count = 0;
@@ -114,6 +120,7 @@ static void csi_received(void *context, wifi_csi_info_t *data)
 
     /* Average I/Q magnitude gives a lightweight, uncalibrated motion signal. */
     uint16_t magnitude = total_magnitude / (2 * complex_sample_count);
+    /* Nonblocking delivery avoids ever stalling the Wi-Fi driver's callback task. */
     xQueueSend(csi_sample_queue, &magnitude, 0);
 }
 
@@ -157,6 +164,7 @@ static void update_chart(lv_timer_t *timer)
 
 static esp_err_t motion_detection_start(void)
 {
+    /* The queue exists before registering callbacks and outlives them until teardown. */
     csi_sample_queue = xQueueCreate(CSI_SAMPLE_QUEUE_LENGTH, sizeof(uint16_t));
     if (csi_sample_queue == NULL) {
         return ESP_ERR_NO_MEM;
@@ -245,6 +253,7 @@ static void back_to_main_menu(void *user_data)
 {
     (void)user_data;
 
+    /* Async navigation ensures this runs after the button event has completed. */
     motion_detection_stop();
     lv_obj_clean(lv_screen_active());
     main_menu_create();

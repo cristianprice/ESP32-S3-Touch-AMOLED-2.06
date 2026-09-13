@@ -21,6 +21,12 @@
 #include "ui_theme.h"
 #include "wifi_network.h"
 
+/*
+ * Hosts the on-device configuration portal and bridges its HTTP API to the
+ * SD card. Portal startup runs on core 0 because Wi-Fi can stall cache access;
+ * LVGL remains isolated on core 1. This module owns HTTP, SPIFFS, and any
+ * network stack it starts, releasing them when the view is dismissed.
+ */
 #define CONFIG_AP_SSID "WatchConfig"
 #define CONFIG_AP_CHANNEL 1
 #define CONFIG_AP_MAX_CONNECTIONS 4
@@ -80,6 +86,10 @@ static bool hex_value(char character, uint8_t *value)
 
 static bool request_sd_path(httpd_req_t *request, char *path, size_t path_size)
 {
+    /*
+     * Decode only the path query parameter, then require an absolute virtual
+     * path and reject traversal before prefixing the SD-card mount point.
+     */
     size_t query_length = httpd_req_get_url_query_len(request);
     if (query_length == 0 || query_length >= SETTINGS_PATH_SIZE)
     {
@@ -101,6 +111,7 @@ static bool request_sd_path(httpd_req_t *request, char *path, size_t path_size)
         char character = encoded_path[index];
         if (character == '%')
         {
+            /* Percent escapes need two following hex digits; malformed input is rejected. */
             uint8_t high;
             uint8_t low;
             if (!hex_value(encoded_path[++index], &high) || !hex_value(encoded_path[++index], &low))
@@ -137,6 +148,7 @@ static esp_err_t mount_sdcard_for_request(httpd_req_t *request)
 
 static esp_err_t send_json_string(httpd_req_t *request, const char *value)
 {
+    /* Stream escaping to avoid allocating a response-sized JSON buffer. */
     esp_err_t result = httpd_resp_send_chunk(request, "\"", 1);
     for (const char *character = value; result == ESP_OK && *character != '\0'; character++)
     {
@@ -418,7 +430,11 @@ static void log_cleanup_error(const char *operation, esp_err_t result)
 
 static void settings_ui_stop(void)
 {
-    /* Release all portal resources before returning from the Settings screen. */
+    /*
+     * HTTP handlers can access SPIFFS and the SD card, so stop the server
+     * first. Then remove filesystems before releasing the network that serves
+     * them. Each cleanup step is best effort so a later resource is not leaked.
+     */
     if (http_server != NULL)
     {
         log_cleanup_error("Failed to stop HTTP server", httpd_stop(http_server));
@@ -441,6 +457,7 @@ static esp_err_t settings_ui_start(void)
     spiffs_mount_failed = false;
 
     esp_err_t result = ESP_OK;
+    /* Retain an already connected station; otherwise create the local SoftAP. */
     if (!wifi_network_station_has_valid_ip()) {
         result = wifi_network_start_ap(CONFIG_AP_SSID, CAPTIVE_PORTAL_URI);
         if (result != ESP_OK)
@@ -519,6 +536,7 @@ static void settings_ui_start_task(void *argument)
     {
         ESP_LOGE(TAG, "Failed to start configuration server: %s", esp_err_to_name(result));
     }
+    /* Back may win the race with startup; the task then relinquishes its resources. */
     if (!settings_view_active)
     {
         settings_ui_stop();

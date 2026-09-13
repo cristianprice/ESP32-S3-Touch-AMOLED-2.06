@@ -19,6 +19,11 @@
 #include "ui_theme.h"
 #include "wifi_network.h"
 
+/*
+ * Drives Wi-Fi scanning and connection as a state machine. Radio and file I/O
+ * run in short-lived core-0 worker tasks; the LVGL timer is the sole consumer
+ * of their state/results and performs every screen mutation on the UI side.
+ */
 #define WIFI_MANAGER_MAX_NETWORKS 20
 #define WIFI_MANAGER_REFRESH_MS 100
 #define WIFI_MANAGER_TASK_PRIORITY 3
@@ -58,6 +63,10 @@ static const char *const TAG = "wifi_manager";
 
 static void encode_hex(const char *source, char *destination, size_t destination_size)
 {
+    /*
+     * Hex encodes arbitrary credentials so the deliberately small JSON parser
+     * need not handle quotes, backslashes, or control characters.
+     */
     static const char hex[] = "0123456789ABCDEF";
     size_t length = strlen(source);
     if (destination_size < length * 2 + 1) {
@@ -111,6 +120,7 @@ static void load_saved_credentials(void)
     contents[length] = '\0';
     char ssid_hex[sizeof(saved_ssid) * 2] = {0};
     char password_hex[sizeof(saved_password) * 2] = {0};
+    /* Fixed field widths bound parsing even if the SD-card file is corrupted. */
     if (sscanf(contents, "{\"ssid_hex\":\"%64[0123456789ABCDEFabcdef]\","
                  "\"password_hex\":\"%128[0123456789ABCDEFabcdef]\"}",
                ssid_hex, password_hex) == 2 &&
@@ -158,6 +168,7 @@ static void return_to_main_menu(void *user_data)
 {
     (void)user_data;
 
+    /* Delete the LVGL consumer before cleaning labels it may otherwise update. */
     if (ui_timer != NULL) {
         lv_timer_delete(ui_timer);
         ui_timer = NULL;
@@ -190,6 +201,7 @@ static void scan_task(void *argument)
 {
     (void)argument;
 
+    /* Blocking scan/connect operations run away from the display task. */
     operation_result = wifi_network_start_station();
     if (operation_result == ESP_OK) {
         esp_err_t mount_result = sd_card_mount();
@@ -237,6 +249,7 @@ static void connect_task(void *argument)
         return;
     }
 
+    /* Polling permits a finite UI-visible timeout without registering netif events. */
     connect_started_at_us = esp_timer_get_time();
     while (!wifi_network_station_has_valid_ip()) {
         if (esp_timer_get_time() - connect_started_at_us >= WIFI_MANAGER_CONNECT_TIMEOUT_US) {
@@ -465,6 +478,7 @@ static void refresh_ui(lv_timer_t *timer)
 {
     (void)timer;
 
+    /* Workers publish state only; this timer owns all LVGL transitions. */
     if (state == WIFI_MANAGER_LISTING && network_list == NULL) {
         lv_async_call(show_network_list, NULL);
     } else if (state == WIFI_MANAGER_CREDENTIALS && !credential_view_visible) {

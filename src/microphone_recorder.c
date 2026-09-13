@@ -23,6 +23,12 @@
 #include "sd_card.h"
 #include "ui_theme.h"
 
+/*
+ * Captures mono PCM from the BSP microphone to timestamped WAV files. The
+ * core-0 recording task owns audio, file, and capture-buffer resources; it
+ * publishes scalar state and spectrum levels for an LVGL timer to render.
+ * Generation checks prevent a completed worker from updating a replaced view.
+ */
 #define RECORDING_DIRECTORY SD_CARD_MOUNT_PATH "/recordings"
 #define RECORDING_PATH_SIZE 128
 #define RECORDING_SAMPLE_RATE 22050
@@ -137,6 +143,7 @@ static const char *recording_failure_stage_name(recording_failure_stage_t stage)
 
 static wav_header_t make_wav_header(uint32_t data_size)
 {
+    /* RIFF chunk sizes exclude their own 8-byte ID/size prefix. */
     wav_header_t header = {
         .riff = {'R', 'I', 'F', 'F'},
         .file_size = data_size + sizeof(wav_header_t) - 8,
@@ -167,6 +174,7 @@ static void update_equalizer_levels(const int16_t *samples, size_t sample_count)
     }
     mean /= EQUALIZER_ANALYSIS_SAMPLE_COUNT;
 
+    /* Goertzel-style single-bin analysis is compact enough for the capture task. */
     for (size_t band = 0; band < EQUALIZER_BAND_COUNT; band++) {
         float normalized_frequency =
             (float)equalizer_frequencies_hz[band] / RECORDING_SAMPLE_RATE;
@@ -245,6 +253,7 @@ static void recording_task(void *argument)
         goto finish;
     }
 
+    /* Write a placeholder header, then seek back with the final byte count on success. */
     wav_header_t header = make_wav_header(0);
     if (fwrite(&header, 1, sizeof(header), file) != sizeof(header)) {
         result = ESP_FAIL;
@@ -316,6 +325,10 @@ static void recording_task(void *argument)
     result = ESP_OK;
 
 finish:
+    /*
+     * Release in reverse acquisition order. A failed partial capture is
+     * removed so the player never presents a WAV with a stale header.
+     */
     if (buffer != NULL) {
         heap_caps_free(buffer);
     }
@@ -335,6 +348,7 @@ finish:
         ESP_LOGE(TAG, "Recording failed at %s: %s",
                  recording_failure_stage_name(recording_failure_stage), esp_err_to_name(result));
     }
+    /* The UI may have been destroyed while capture unwound; guard its state update. */
     if (view_active && task_generation == view_generation) {
         recording_result = result;
         recording_state = result == ESP_OK ? RECORDING_SAVED : RECORDING_FAILED;
@@ -361,6 +375,7 @@ static void refresh_recording_ui(lv_timer_t *timer)
 {
     (void)timer;
 
+    /* LVGL objects are touched only by this UI timer, never by recording_task. */
     if (recording_state == RECORDING_ACTIVE) {
         int64_t elapsed_seconds = (esp_timer_get_time() - recording_started_at_us) / 1000000;
         lv_label_set_text_fmt(elapsed_label, "Recording %02" PRId64 ":%02" PRId64,

@@ -17,6 +17,12 @@
 #include "main_menu.h"
 #include "ui_theme.h"
 
+/*
+ * Owns a QMI8658 accelerometer session on the BSP's shared I2C bus and an
+ * LVGL timer that samples it. The step estimate is a local threshold/hysteresis
+ * heuristic, not pedometer-calibrated data; its UI and sensor are torn down
+ * together when the user returns to the launcher.
+ */
 #define QMI8658_ADDRESS 0x6B
 #define QMI8658_I2C_CLOCK_HZ 100000
 #define QMI8658_WHO_AM_I_REGISTER 0x00
@@ -114,6 +120,7 @@ static esp_err_t qmi8658_read_acceleration(float *x, float *y, float *z)
         return result;
     }
 
+    /* Sensor output is little-endian signed 16-bit acceleration scaled to ±4 g. */
     *x = (float)(int16_t)((uint16_t)values[1] << 8 | values[0]) * QMI8658_ACCEL_SCALE_G;
     *y = (float)(int16_t)((uint16_t)values[3] << 8 | values[2]) * QMI8658_ACCEL_SCALE_G;
     *z = (float)(int16_t)((uint16_t)values[5] << 8 | values[4]) * QMI8658_ACCEL_SCALE_G;
@@ -154,6 +161,7 @@ static esp_err_t qmi8658_start(void)
         return result;
     }
 
+    /* Reset is asynchronous; wait before probing identity and enabling measurements. */
     result = qmi8658_write_register(QMI8658_RESET_REGISTER, QMI8658_RESET_VALUE);
     if (result != ESP_OK) {
         goto fail;
@@ -213,11 +221,13 @@ static void update_elapsed_time(lv_timer_t *timer)
     if (gravity_magnitude_g == 0.0f) {
         gravity_magnitude_g = magnitude_g;
     }
+    /* Low-pass gravity leaves short changes as the motion signal used for peaks. */
     gravity_magnitude_g = gravity_magnitude_g * 0.9f + magnitude_g * 0.1f;
     float linear_acceleration_g = fabsf(magnitude_g - gravity_magnitude_g);
     int64_t now_us = esp_timer_get_time();
     bool step_registered = false;
 
+    /* Hysteresis plus interval bounds suppress repeated peaks and incidental movement. */
     if (!step_peak_detected && linear_acceleration_g >= STEP_HIGH_THRESHOLD_G) {
         int64_t step_interval_us = now_us - last_step_at_us;
         if (last_step_at_us == 0 || step_interval_us > STEP_MAXIMUM_INTERVAL_US) {
@@ -261,6 +271,7 @@ static void back_to_main_menu(void *user_data)
 {
     (void)user_data;
 
+    /* Stop UI sampling before deleting its sensor handle and screen-owned objects. */
     if (elapsed_timer != NULL) {
         lv_timer_delete(elapsed_timer);
         elapsed_timer = NULL;

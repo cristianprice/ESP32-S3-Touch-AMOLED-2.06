@@ -8,6 +8,12 @@
 #include "esp_wifi_default.h"
 #include "nvs_flash.h"
 
+/*
+ * Owns the singleton ESP-IDF Wi-Fi/network-stack lifecycle shared by views.
+ * Startup records every acquired layer so failure and normal shutdown can
+ * release them in reverse dependency order. This module does not wait for IP
+ * events; callers choose their own asynchronous connection policy.
+ */
 #define NETWORK_AP_CHANNEL 1
 #define NETWORK_AP_MAX_CONNECTIONS 4
 
@@ -21,6 +27,7 @@ static bool wifi_started;
 
 void wifi_network_stop(void)
 {
+    /* Stop users of lower layers before deinitializing their provider layers. */
     if (wifi_started) {
         esp_wifi_stop();
         wifi_started = false;
@@ -111,6 +118,7 @@ esp_err_t wifi_network_scan(wifi_ap_record_t *records, uint16_t *record_count)
         return ESP_ERR_INVALID_ARG;
     }
 
+    /* Synchronous scan blocks only the caller's worker task, never LVGL's task. */
     esp_err_t result = esp_wifi_scan_start(NULL, true);
     if (result != ESP_OK) {
         return result;
@@ -129,6 +137,7 @@ esp_err_t wifi_network_connect_station(const char *ssid, const char *password)
     wifi_config_t config = {0};
     memcpy(config.sta.ssid, ssid, strlen(ssid));
     memcpy(config.sta.password, password, strlen(password));
+    /* Copy explicit lengths: ESP-IDF Wi-Fi fields are byte arrays, not C strings. */
     config.sta.scan_method = WIFI_FAST_SCAN;
     config.sta.failure_retry_cnt = 3;
     esp_err_t result = esp_wifi_disconnect();
@@ -186,6 +195,7 @@ esp_err_t wifi_network_start_ap(const char *ssid, const char *captive_portal_uri
         goto fail;
     }
     if (captive_portal_uri != NULL) {
+        /* DHCP option 114 directs captive-portal-aware clients to the local UI. */
         result = esp_netif_dhcps_option(access_point_netif, ESP_NETIF_OP_SET,
                                         ESP_NETIF_CAPTIVEPORTAL_URI, (void *)captive_portal_uri,
                                         strlen(captive_portal_uri));

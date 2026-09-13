@@ -23,6 +23,12 @@
 #include "ui_theme.h"
 #include "wifi_network.h"
 
+/*
+ * Provides a deliberately read-only FTP view of the SD card. A core-0 worker
+ * owns all sockets and blocking filesystem transfers; the LVGL view only
+ * starts/stops it. The module starts WatchFTP only when no usable network is
+ * already available, and later releases only the network it created.
+ */
 #define FTP_AP_SSID "WatchFTP"
 #define FTP_PORT 21
 #define FTP_TASK_PRIORITY 3
@@ -81,6 +87,7 @@ static bool send_data(int socket, const char *buffer, size_t length)
 static bool make_sd_path(const char *working_directory, const char *argument, char *path,
                          size_t path_size)
 {
+    /* FTP paths are virtualized below /sdcard; reject traversal before file access. */
     const char *virtual_path = argument[0] == '/' ? argument : working_directory;
     int length = argument[0] == '/'
                      ? snprintf(path, path_size, SD_CARD_MOUNT_PATH "%s", virtual_path)
@@ -90,6 +97,10 @@ static bool make_sd_path(const char *working_directory, const char *argument, ch
 
 static int open_passive_listener(int control)
 {
+    /*
+     * PASV opens an ephemeral listener and advertises the IPv4 address and
+     * port as six decimal fields, per the FTP passive-mode wire protocol.
+     */
     int socket = lwip_socket(AF_INET, SOCK_STREAM, IPPROTO_IP);
     if (socket < 0) {
         send_response(control, "425 Cannot open data connection.\r\n");
@@ -223,6 +234,7 @@ static void retrieve_file(int control, int *passive_socket, const char *path)
 
 static void process_command(int control, int *passive_socket, char *working_directory, char *line)
 {
+    /* The command line is split in place; only a small read-only FTP subset is exposed. */
     char *argument = strchr(line, ' ');
     if (argument != NULL) {
         *argument++ = '\0';
@@ -302,6 +314,7 @@ static void serve_client(int socket)
         used += count;
         buffer[used] = '\0';
         char *line;
+        /* TCP is a byte stream: retain partial commands until their CRLF arrives. */
         while ((line = strstr(buffer, "\r\n")) != NULL) {
             *line = '\0';
             process_command(socket, &passive_socket, working_directory, buffer);
@@ -371,6 +384,10 @@ static esp_err_t start_ftp_service(void)
 
 static void stop_ftp_service(void)
 {
+    /*
+     * Closing both listeners unblocks select/recv in the service task before
+     * the card and optional fallback network are released.
+     */
     ftp_running = false;
     close_socket(&control_socket);
     close_socket(&listen_socket);
@@ -398,6 +415,7 @@ static void start_ftp_task(void *argument)
         ESP_LOGE(TAG, "Failed to start FTP service: %s", esp_err_to_name(result));
         stop_ftp_service();
     }
+    /* If the user left while setup ran, do not leave a headless service behind. */
     if (!ftp_view_active) {
         stop_ftp_service();
     }

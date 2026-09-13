@@ -10,6 +10,11 @@
 #include "time_mgmt.h"
 
 /*
+ * Application composition root. It establishes the BSP display and initial
+ * clock screen, then hands screen mutations to LVGL events/async callbacks.
+ * The display task runs on core 1 while radio/network work uses core 0.
+ */
+/*
  * The display service runs LVGL independently of app_main. Keep its task on
  * core 1: Wi-Fi, the Settings portal, and their event work are pinned to core 0.
  */
@@ -35,6 +40,7 @@ static void request_main_menu(lv_event_t *event)
 {
     (void)event;
 
+    /* Input callbacks defer destruction of the current screen until LVGL's safe queue. */
     lv_async_call(open_main_menu, NULL);
 }
 

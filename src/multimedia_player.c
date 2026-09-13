@@ -23,6 +23,12 @@
 #include "sd_card.h"
 #include "ui_theme.h"
 
+/*
+ * Browses SD-card directories and plays a constrained PCM WAV format through
+ * the BSP speaker. Core-0 workers own blocking codec/filesystem operations;
+ * the LVGL timer serializes UI transitions once those workers stop, preventing
+ * deleted screens or an unmounted card from being used by an active task.
+ */
 #define PLAYER_PATH_SIZE 192
 #define PLAYER_NAME_SIZE 64
 #define PLAYER_BUFFER_SIZE 2048
@@ -123,6 +129,7 @@ static void return_to_main_menu(void *user_data)
 {
     (void)user_data;
 
+    /* Keep the screen and SD mount alive until the playback task has released them. */
     if (playback_task_running) {
         return;
     }
@@ -141,6 +148,10 @@ static void return_to_main_menu(void *user_data)
 
 static bool read_wav_format(FILE *file, wav_format_t *format)
 {
+    /*
+     * RIFF chunks are extensible and word-aligned. Walk them rather than
+     * assuming a fixed 44-byte header, then retain the data chunk's offset.
+     */
     uint8_t header[12];
     if (fread(header, 1, sizeof(header), file) != sizeof(header) ||
         memcmp(header, "RIFF", 4) != 0 || memcmp(header + 8, "WAVE", 4) != 0) {
@@ -194,6 +205,7 @@ static void playback_task(void *argument)
     esp_codec_dev_handle_t speaker = NULL;
     esp_err_t result = ESP_OK;
     wav_format_t format;
+    /* The hardware path accepts the recorder's 22.05 kHz, mono, 16-bit PCM only. */
     if (file == NULL || !read_wav_format(file, &format) || format.format != 1 ||
         format.channels != 1 || format.sample_rate != 22050 || format.bits_per_sample != 16) {
         result = ESP_ERR_NOT_SUPPORTED;
@@ -263,6 +275,7 @@ static void playback_task(void *argument)
     }
 
 finish:
+    /* The worker owns codec/file/buffer cleanup and publishes completion last. */
     if (buffer != NULL) {
         heap_caps_free(buffer);
     }
@@ -455,6 +468,7 @@ static void clear_recordings_task(void *argument)
     (void)argument;
 
     clear_errno = 0;
+    /* Runs after playback stops, so recursive deletion cannot race an open WAV file. */
     clear_result = clear_directory_contents(RECORDINGS_DIRECTORY) ? ESP_OK : ESP_FAIL;
     clear_result_ready = true;
     clear_task_running = false;
@@ -744,6 +758,7 @@ static void refresh_player_ui(lv_timer_t *timer)
 {
     (void)timer;
 
+    /* Defer navigation and destructive work until all workers have quiesced. */
     if (leave_requested && !playback_task_running && !clear_task_running) {
         leave_requested = false;
         lv_async_call(return_to_main_menu, NULL);

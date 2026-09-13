@@ -7,6 +7,11 @@
 #include "bsp/esp-bsp.h"
 #include "deep_sleep.h"
 
+/*
+ * Owns the AXP2101 handle attached to the BSP's shared I2C bus. The PMIC
+ * reports power-key events through registers, so a dedicated polling task
+ * acknowledges the latched bit before requesting the global sleep path.
+ */
 #define AXP2101_ADDRESS 0x34
 #define AXP2101_I2C_CLOCK_HZ 100000
 #define AXP2101_REG_INTEN2 0x41
@@ -20,6 +25,7 @@ static i2c_master_dev_handle_t axp2101_device;
 
 static esp_err_t read_register(uint8_t register_address, uint8_t *value)
 {
+    /* Register-address write followed by read is the PMIC's I2C transaction format. */
     return i2c_master_transmit_receive(
         axp2101_device, &register_address, sizeof(register_address), value, sizeof(*value), -1);
 }
@@ -111,7 +117,10 @@ esp_err_t power_button_start(void)
         return result;
     }
 
-    /* Poll the PMIC because its power-key interrupt is exposed through I2C. */
+    /*
+     * Poll the PMIC because its power-key interrupt is exposed through I2C.
+     * The task owns no LVGL objects and remains valid for the whole boot.
+     */
     return xTaskCreate(
                power_button_task, "power_button", 2048, NULL, 5, NULL) == pdPASS
                ? ESP_OK

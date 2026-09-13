@@ -1,5 +1,10 @@
 #include "ui_theme.h"
 
+/*
+ * Centralizes the reusable visual contract for interactive controls. This
+ * helper intentionally only changes styles; allocation, event callbacks, and
+ * LVGL object lifetime remain with each calling view.
+ */
 void ui_theme_apply_button(lv_obj_t *button)
 {
     lv_obj_set_style_radius(button, 16, 0);

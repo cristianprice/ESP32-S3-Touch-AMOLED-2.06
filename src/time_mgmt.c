@@ -10,6 +10,11 @@
 #include "bsp/esp-bsp.h"
 #include "assets/abstract_timekeeper.h"
 
+/*
+ * Owns the PCF85063 device on the shared BSP I2C bus and the initial clock
+ * screen's LVGL timer. The RTC stores calendar fields in BCD; conversion and
+ * validation stay here so other modules exchange ordinary UTC timestamps.
+ */
 /* PCF85063 RTC register layout and I2C bus parameters. */
 #define PCF85063_ADDRESS 0x51
 #define PCF85063_I2C_CLOCK_HZ 100000
@@ -53,6 +58,7 @@ static uint8_t decimal_to_bcd(uint8_t value)
 
 static uint8_t weekday_from_date(uint16_t year, uint8_t month, uint8_t day)
 {
+    /* Sakamoto's Gregorian-calendar offsets yield Sunday == 0, matching the RTC/UI. */
     static const uint8_t month_offsets[] = {
         0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4
     };
@@ -107,6 +113,7 @@ static rtc_datetime_t build_datetime(void)
 
 static esp_err_t write_datetime(const rtc_datetime_t *datetime)
 {
+    /* The RTC auto-increments from seconds, so one write updates the full calendar. */
     const uint8_t payload[PCF85063_DATETIME_SIZE + 1] = {
         PCF85063_REG_SECONDS,
         decimal_to_bcd(datetime->seconds),
@@ -164,6 +171,7 @@ static esp_err_t read_datetime(rtc_datetime_t *datetime, uint8_t *raw_datetime)
 
 static void update_clock_labels(void)
 {
+    /* Called only by initialization and the LVGL timer, never from an I2C callback. */
     rtc_datetime_t datetime;
     esp_err_t result = read_datetime(&datetime, NULL);
     if (result != ESP_OK)
@@ -210,6 +218,7 @@ esp_err_t time_mgmt_start(void)
     result = read_datetime(&datetime, NULL);
     if (result == ESP_ERR_INVALID_STATE)
     {
+        /* A stopped oscillator or malformed calendar is replaced with the build time. */
         datetime = build_datetime();
         result = write_datetime(&datetime);
     }

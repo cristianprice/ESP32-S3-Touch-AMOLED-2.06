@@ -20,6 +20,12 @@
 #include "time_mgmt.h"
 #include "ui_theme.h"
 
+/*
+ * Synchronizes wall time through a short-lived UDP worker. The worker performs
+ * DNS and socket I/O on core 0 and publishes only result state; the LVGL timer
+ * owns status-label updates. A generation token makes stale workers harmless
+ * when the user leaves the view before a network timeout expires.
+ */
 #define NTP_PORT 123
 #define NTP_PACKET_SIZE 48
 #define NTP_TRANSMIT_TIMESTAMP_OFFSET 40
@@ -52,6 +58,7 @@ static volatile bool view_active;
 
 static bool station_has_network_connection(void)
 {
+    /* Association alone is insufficient: NTP also needs a station IPv4 lease. */
     wifi_ap_record_t access_point;
     if (esp_wifi_sta_get_ap_info(&access_point) != ESP_OK) {
         return false;
@@ -72,6 +79,7 @@ static esp_err_t request_ntp_time(const char *server, time_t *utc_time)
         return ESP_ERR_INVALID_ARG;
     }
 
+    /* Restrict this compact client to IPv4 UDP, matching the Wi-Fi netif path. */
     struct addrinfo hints = {
         .ai_family = AF_INET,
         .ai_socktype = SOCK_DGRAM,
@@ -95,6 +103,10 @@ static esp_err_t request_ntp_time(const char *server, time_t *utc_time)
         return ESP_FAIL;
     }
 
+    /*
+     * First byte encodes LI=0, version=4, mode=3 (client). NTP timestamps
+     * are big-endian seconds since 1900; only transmit seconds are required.
+     */
     uint8_t request[NTP_PACKET_SIZE] = {0};
     request[0] = 0x23;
     ssize_t sent = sendto(socket, request, sizeof(request), 0, address_info->ai_addr,
@@ -130,6 +142,7 @@ static void synchronize_time_task(void *argument)
     esp_err_t result = ESP_ERR_TIMEOUT;
     time_t utc_time = 0;
 
+    /* Try independent public servers so a transient DNS/server failure is not terminal. */
     for (size_t index = 0; index < sizeof(ntp_servers) / sizeof(ntp_servers[0]); index++) {
         result = request_ntp_time(ntp_servers[index], &utc_time);
         if (result == ESP_OK) {
@@ -137,6 +150,10 @@ static void synchronize_time_task(void *argument)
         }
     }
 
+    /*
+     * Do not change system/RTC time from a request whose owning view is gone.
+     * settimeofday updates libc time; the RTC remains the persistent source.
+     */
     if (result == ESP_OK && view_active && request_generation == view_generation) {
         struct timeval system_time = {.tv_sec = utc_time};
         if (settimeofday(&system_time, NULL) != 0) {
@@ -157,6 +174,7 @@ static void refresh_sync_status(lv_timer_t *timer)
 {
     (void)timer;
 
+    /* This LVGL timer is the only task permitted to write the status label. */
     if (sync_state == NTP_SYNC_SUCCEEDED) {
         lv_label_set_text(status_label, "Time synchronized successfully");
     } else if (sync_state == NTP_SYNC_FAILED) {
@@ -193,6 +211,7 @@ static void return_to_main_menu(void *user_data)
 {
     (void)user_data;
 
+    /* Invalidate an in-flight worker before deleting the UI it would otherwise report to. */
     view_active = false;
     view_generation++;
     if (status_refresh_timer != NULL) {
@@ -209,6 +228,7 @@ static void request_main_menu(lv_event_t *event)
 {
     (void)event;
 
+    /* Do not delete the event target synchronously from its own callback. */
     lv_async_call(return_to_main_menu, NULL);
 }
 

@@ -2,6 +2,11 @@
 
 #include "bsp/esp-bsp.h"
 
+/*
+ * Small ownership wrapper around the BSP SD-card mount. Views share the card
+ * sequentially; this flag prevents duplicate mount/unmount calls without
+ * claiming ownership of the BSP driver itself.
+ */
 static bool mounted;
 
 esp_err_t sd_card_mount(void)

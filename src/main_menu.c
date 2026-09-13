@@ -25,6 +25,11 @@
 #include "wifi_manager.h"
 #include "wifi_network.h"
 
+/*
+ * Implements the fixed-size application launcher and its status toolbar.
+ * Tile events queue navigation asynchronously so the active screen is never
+ * destroyed from within its own LVGL event callback.
+ */
 /* The 3-by-3 grid is sized for the 410-by-502 AMOLED display. */
 #define MENU_COLUMN_COUNT 3
 #define MENU_PADDING 12
@@ -215,6 +220,7 @@ static const char *battery_icon(uint8_t percent)
 
 static void create_toolbar(lv_obj_t *parent)
 {
+    /* Status is sampled while the menu is created; it is not a live indicator. */
     lv_obj_t *toolbar = lv_obj_create(parent);
     lv_obj_add_flag(toolbar, LV_OBJ_FLAG_IGNORE_LAYOUT);
     lv_obj_set_size(toolbar, LV_PCT(100), MENU_TOOLBAR_HEIGHT);
@@ -252,6 +258,7 @@ static void create_toolbar(lv_obj_t *parent)
 
 static void create_menu_button(lv_obj_t *parent, uint32_t index)
 {
+    /* The index is the stable mapping shared by event registration and artwork selection. */
     lv_obj_t *button = lv_button_create(parent);
     lv_obj_set_size(button, MENU_BUTTON_WIDTH, MENU_BUTTON_HEIGHT);
     lv_obj_set_grid_cell(button, LV_GRID_ALIGN_CENTER, index % MENU_COLUMN_COUNT, 1,
